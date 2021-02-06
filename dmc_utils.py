@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 
 
 def interpolate_curve(SteadyStateTime, NumberOfCoefficients, curve, SampleInterval=1):
+    '''
+    This function will interpolate a curve of it is compressed.
+    '''
     xp = np.linspace(1, SteadyStateTime, NumberOfCoefficients)
     upsample = np.arange(1, SteadyStateTime+1, SampleInterval)
     return np.interp(upsample, xp, curve)
@@ -45,34 +48,58 @@ def gScale(v, dGain, nGain):
     gRatio = nGain / dGain
     return v * gRatio
 
+
 def get_impulse_responce(SteadyStateTime, NumberOfCoefficients, curve):
-    step_responce = interpolate_curve(SteadyStateTime, NumberOfCoefficients, curve)
+    '''
+    This function generates the impulse responce of step responce curve.
+    '''
+    step_responce = interpolate_curve(
+        SteadyStateTime, NumberOfCoefficients, curve)
     impulse_responce = np.diff(step_responce, n=1)
     t = t = np.arange(0, len(impulse_responce))
     return t, impulse_responce
 
-def get_freq_responce(curve):
+
+def get_freq_responce(SteadyStateTime, NumberOfCoefficients, curve):
+    '''
+    This function generates the frequency responce of step responce curve.
+    '''
     _, impulse_responce = get_impulse_responce(SteadyStateTime, NumberOfCoefficients, curve)
     w, h = signal.freqz(impulse_responce)
     return w, np.abs(h)
+
+
 with open('mdl/Stabi.mdl', 'r') as f:
     model = get_dmc_model(f)
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']
-    curve = model['Coefficients']['CV1-iPen-TOP']['MV2-RFX-SP']
-    # 'CV2-nBut-BOT': {'MV1-TEMP-SP': -0.08109767701483682}
     v = model['Coefficients']['CV2-nBut-BOT']['MV1-TEMP-SP']
     dGain = model['dGain']['CV2-nBut-BOT']['MV1-TEMP-SP']
-    rv = rotate(v, dGain, -0.095)
-    scale_v = gScale(v, dGain, -0.095)
+    ng = - 0.095 #new gain
+    rv = rotate(v, dGain, ng)
+    scale_v = gScale(v, dGain, ng)
     x = np.arange(0, len(v))
+    t, impulse_responce = get_impulse_responce(SteadyStateTime, NumberOfCoefficients, v)
+    w, h = get_freq_responce(SteadyStateTime, NumberOfCoefficients, v)
+
+    #Plot Gain correction
     plt.plot(x, v, '-', x, rv, '--', x, scale_v, '-.',)
-    plt.legend(['Orginal = -0.0810', 'Rotate = -0.095', 'GScale  = -0.095'])
+    plt.legend(['Orginal = -0.0810', f'Rotate = {ng}', f'GScale  = {ng}'])
+    plt.grid(color='r', linestyle='--', linewidth=0.5)
+    plt.title('Edit model Gain using rotae and gScale')
+    plt.show()
+
+    # Plot Impulse responce
+    plt.plot(t, impulse_responce, '--')
+    plt.legend(['Impulse responce'])
+    plt.grid(color='r', linestyle='--', linewidth=0.5)
+    plt.title('')
+    plt.show()
+
+    # Plot frequency reponce
+    plt.semilogx(w, h, 'g')
+    plt.ylabel('Amplitude (db)', color='b')
+    plt.xlabel('Frequency (rad/sample)', color='b')
+    plt.title('Frequency responce')
     plt.grid(color='r', linestyle='--', linewidth=0.5)
     plt.show()
-    # plt.plot(t, impulse_responce, '--')
-    # plt.show()
-    # plt.semilogx(w, np.abs(h), 'r')
-    # plt.ylabel('Amplitude (db)', color='b')
-    # plt.xlabel('Frequency (rad/sample)', color='b')
-    # plt.show()

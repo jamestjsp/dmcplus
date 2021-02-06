@@ -46,7 +46,7 @@ def gScale(v, dGain, nGain):
     return v * gRatio
 
 
-with open('Stabi.mdl', 'r') as f:
+with open('mdl/Stabi.mdl', 'r') as f:
     model = get_dmc_model(f)
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']

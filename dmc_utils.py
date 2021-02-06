@@ -49,23 +49,23 @@ def gScale(v, dGain, nGain):
     return v * gRatio
 
 
-def get_impulse_responce(SteadyStateTime, NumberOfCoefficients, curve):
+def get_impulse_rsponse(SteadyStateTime, NumberOfCoefficients, curve):
     '''
-    This function generates the impulse responce of step responce curve.
+    This function generates the impulse rsponse of step rsponse curve.
     '''
-    step_responce = interpolate_curve(
+    step_rsponse = interpolate_curve(
         SteadyStateTime, NumberOfCoefficients, curve)
-    impulse_responce = np.diff(step_responce, n=1)
-    t = t = np.arange(0, len(impulse_responce))
-    return t, impulse_responce
+    impulse_rsponse = np.diff(step_rsponse, n=1)
+    t = t = np.arange(0, len(impulse_rsponse))
+    return t, impulse_rsponse
 
 
-def get_freq_responce(SteadyStateTime, NumberOfCoefficients, curve):
+def get_freq_rsponse(SteadyStateTime, NumberOfCoefficients, curve):
     '''
-    This function generates the frequency responce of step responce curve.
+    This function generates the frequency rsponse of step rsponse curve.
     '''
-    _, impulse_responce = get_impulse_responce(SteadyStateTime, NumberOfCoefficients, curve)
-    w, h = signal.freqz(impulse_responce)
+    _, impulse_rsponse = get_impulse_rsponse(SteadyStateTime, NumberOfCoefficients, curve)
+    w, h = signal.freqz(impulse_rsponse)
     return w, np.abs(h)
 
 
@@ -79,27 +79,26 @@ with open('mdl/Stabi.mdl', 'r') as f:
     rv = rotate(v, dGain, ng)
     scale_v = gScale(v, dGain, ng)
     x = np.arange(0, len(v))
-    t, impulse_responce = get_impulse_responce(SteadyStateTime, NumberOfCoefficients, v)
-    w, h = get_freq_responce(SteadyStateTime, NumberOfCoefficients, v)
+    t, impulse_rsponse = get_impulse_rsponse(SteadyStateTime, NumberOfCoefficients, v)
+    w, h = get_freq_rsponse(SteadyStateTime, NumberOfCoefficients, v)
 
     #Plot Gain correction
     plt.plot(x, v, '-', x, rv, '--', x, scale_v, '-.',)
     plt.legend(['Orginal = -0.0810', f'Rotate = {ng}', f'GScale  = {ng}'])
     plt.grid(color='r', linestyle='--', linewidth=0.5)
-    plt.title('Edit model Gain using rotae and gScale')
+    plt.title('Edited Gain using rotate and gScale')
     plt.show()
 
-    # Plot Impulse responce
-    plt.plot(t, impulse_responce, '--')
-    plt.legend(['Impulse responce'])
+    # Plot Impulse rsponse
+    plt.plot(t, impulse_rsponse, '--')
     plt.grid(color='r', linestyle='--', linewidth=0.5)
-    plt.title('')
+    plt.title('Impulse rsponse')
     plt.show()
 
     # Plot frequency reponce
     plt.semilogx(w, h, 'g')
     plt.ylabel('Amplitude (db)', color='b')
     plt.xlabel('Frequency (rad/sample)', color='b')
-    plt.title('Frequency responce')
+    plt.title('Frequency rsponse')
     plt.grid(color='r', linestyle='--', linewidth=0.5)
     plt.show()

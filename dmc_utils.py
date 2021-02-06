@@ -45,17 +45,21 @@ def gScale(v, dGain, nGain):
     gRatio = nGain / dGain
     return v * gRatio
 
+def get_impulse_responce(SteadyStateTime, NumberOfCoefficients, curve):
+    step_responce = interpolate_curve(SteadyStateTime, NumberOfCoefficients, curve)
+    impulse_responce = np.diff(step_responce, n=1)
+    t = t = np.arange(0, len(impulse_responce))
+    return t, impulse_responce
 
+def get_freq_responce(curve):
+    _, impulse_responce = get_impulse_responce(SteadyStateTime, NumberOfCoefficients, curve)
+    w, h = signal.freqz(impulse_responce)
+    return w, np.abs(h)
 with open('mdl/Stabi.mdl', 'r') as f:
     model = get_dmc_model(f)
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']
     curve = model['Coefficients']['CV1-iPen-TOP']['MV2-RFX-SP']
-    step_responce = interpolate_curve(
-        SteadyStateTime, NumberOfCoefficients, curve)
-    impulse_responce = np.diff(step_responce, n=1)
-    w, h = signal.freqz(impulse_responce)
-    t = np.arange(0, len(impulse_responce))
     # 'CV2-nBut-BOT': {'MV1-TEMP-SP': -0.08109767701483682}
     v = model['Coefficients']['CV2-nBut-BOT']['MV1-TEMP-SP']
     dGain = model['dGain']['CV2-nBut-BOT']['MV1-TEMP-SP']

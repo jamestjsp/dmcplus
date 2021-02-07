@@ -1,1 +1,2 @@
-__pycache__/mdl.cpython-36.pyc
+__pycache__/*.pyc
+fit_tf.py

@@ -67,11 +67,14 @@ def get_dmc_model(file):
 
 if __name__ == '__main__':
     import  json
-    infile = 'mdl/upstram_HP.mdl'
+    infile = 'mdl/HP.mdl'
+   
     with open(infile, 'r') as f:
         curves = get_dmc_model(f)
-        outfile = 'json' + infile.rsplit('.',1)[0][3:] + '.json'
-        with open(outfile, "w") as outfile:
-            json.dump(curves, outfile)
+    
+    outfile = 'json' + infile.rsplit('.',1)[0][3:] + '.json'
+    
+    with open(outfile, "w") as outfile:
+        json.dump(curves, outfile)
 
 

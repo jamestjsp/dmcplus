@@ -68,9 +68,11 @@ def get_freq_rsponse(SteadyStateTime, NumberOfCoefficients, curve):
     w, h = signal.freqz(impulse_rsponse)
     return w, np.abs(h)
 
-
-with open('mdl/Stabi.mdl', 'r') as f:
-    model = get_dmc_model(f)
+if __name__ == '__main__':
+    
+    with open('mdl/Stabi.mdl', 'r') as f:
+        model = get_dmc_model(f)
+        
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']
     v = model['Coefficients']['CV2-nBut-BOT']['MV1-TEMP-SP']
@@ -81,20 +83,17 @@ with open('mdl/Stabi.mdl', 'r') as f:
     x = np.arange(0, len(v))
     t, impulse_rsponse = get_impulse_rsponse(SteadyStateTime, NumberOfCoefficients, v)
     w, h = get_freq_rsponse(SteadyStateTime, NumberOfCoefficients, v)
-
     #Plot Gain correction
     plt.plot(x, v, '-', x, rv, '--', x, scale_v, '-.',)
     plt.legend(['Orginal = -0.0810', f'Rotate = {ng}', f'GScale  = {ng}'])
     plt.grid(color='r', linestyle='--', linewidth=0.5)
     plt.title('Edited Gain using rotate and gScale')
     plt.show()
-
     # Plot Impulse rsponse
     plt.plot(t, impulse_rsponse, '--')
     plt.grid(color='r', linestyle='--', linewidth=0.5)
     plt.title('Impulse rsponse')
     plt.show()
-
     # Plot frequency reponce
     plt.semilogx(w, h, 'g')
     plt.ylabel('Amplitude (db)', color='b')

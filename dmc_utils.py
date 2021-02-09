@@ -67,7 +67,18 @@ def get_freq_rsponse(SteadyStateTime, NumberOfCoefficients, curve):
     _, impulse_rsponse = get_impulse_rsponse(SteadyStateTime, NumberOfCoefficients, curve)
     w, h = signal.freqz(impulse_rsponse)
     return w, np.abs(h)
-
+def calculate_deadtime(curve):
+    '''
+    This function calulate dead time from the FIR curve.
+    It is recomented to pass interpolated curve as cuves can a compressed one. 
+    '''
+    theta = 0
+    for coef in curve:
+        if coef ==0:
+            theta += 1
+        else:
+            break
+    return theta
 if __name__ == '__main__':
     
     with open('mdl/Stabi.mdl', 'r') as f:

@@ -5,6 +5,7 @@ from robustcontrol.utils import InternalDelay, tf
 from mdl import get_dmc_model
 import matplotlib.pyplot as plt
 
+
 def interpolate_curve(SteadyStateTime, NumberOfCoefficients, curve, SampleInterval=1):
     '''
     This function will interpolate a curve of it is compressed.
@@ -85,41 +86,69 @@ def calculate_deadtime(curve):
     return theta
 
 
+def detect_steady_state(curve, deadtime, SteadyStateTime, threshold=0.0005):
+    window_size = int(SteadyStateTime/40)
+    start = 0 if deadtime == 0 else deadtime
+    end = start + window_size
+    while True:
+        stdev = np.std(curve[start:end])
+        start = end
+        end = start + window_size
+        if stdev <= threshold:
+            break
+        elif end > len(curve):
+            end = len(curve)
+            break
+        else:
+            continue
+    return end
+
+
 def tf_step(ts, c, theta, K, a=0, b=0, isRamp=False):
     s = tf([1, 0])
-    if isRamp:
-        tf_model = InternalDelay(
-            K * (a*s + 1) / (b*s**2 + c*s + 0) * np.exp(-theta*s))
-    else:
-        tf_model = InternalDelay(
-            K * (a*s + 1) / (b*s**2 + c*s + 1) * np.exp(-theta*s))
+    tf_model = InternalDelay(
+        K * (a*s + 1) / (b*s**2 + c*s + (not isRamp)) * np.exp(-theta*s))
 
-    uf = lambda t: np.array([1])
+    def uf(t): return np.array([1])
     return tf_model.simulate(uf, ts).flatten()
 
 
-def fit_tf(curve, K, isRamp, SteadyStateTime, NumberOfCoefficients):
+def fit_tf(curve, K, isRamp, SteadyStateTime, NumberOfCoefficients, fopdt=False):
     extended_curve = interpolate_curve(
         SteadyStateTime, NumberOfCoefficients, curve)
     if np.count_nonzero(extended_curve):
         theta = calculate_deadtime(extended_curve)
+        SteadyStateTime = detect_steady_state(
+            extended_curve, theta, SteadyStateTime, 0.0001)
         ts = np.arange(0, SteadyStateTime)
-        popt, pcov = curve_fit(lambda ts, a, b, c: tf_step(ts, c, theta, K, a, b, isRamp),
-                               ts,
-                               extended_curve,
-                               bounds=(
-            [-100, 0, 0], [100, (SteadyStateTime/4)**2, (SteadyStateTime/4)])
-        )
-        a, b, c = popt
-        num = [a*K, K]
-        den = [b, c, 0] if isRamp else [b, c, 1]
-        deadtime = theta
-        return [num, den, deadtime]
+        if not fopdt:
+            popt, pcov = curve_fit(lambda ts, a, b, c: tf_step(ts, c, theta, K, a, b, isRamp),
+                                ts,
+                                extended_curve[:SteadyStateTime],
+                                bounds=(
+                [-100, 0, 0], [100, ((SteadyStateTime-theta)/4)**2, ((SteadyStateTime-theta)/4)])
+            )
+            a, b, c = popt
+            num = [a*K, K]
+            den = [b, c, 0] if isRamp else [b, c, 1]
+            deadtime = theta
+            return [num, den, deadtime]
+        else:
+            popt, pcov = curve_fit(lambda ts, c, theta: tf_step(ts, c, theta, K, isRamp),
+                                ts,
+                                extended_curve[:SteadyStateTime],
+                                bounds=([0, theta if theta else 0], [(SteadyStateTime-theta)/4, (SteadyStateTime-theta)/3])
+            )
+            c, theta = popt
+            num = [K]
+            den = [c, 0] if isRamp else [c, 1]
+            deadtime = theta
+            return [num, den, deadtime]
     else:
         return None
 
 
-def fit2tf(model):
+def fit2tf(model, fopdt=False):
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']
     deps = model['Dependents']
@@ -135,55 +164,43 @@ def fit2tf(model):
             K = dGain[dep][ind]
             ramp_flag = isRamp[dep]
             tf = fit_tf(curve, K, ramp_flag, SteadyStateTime,
-                        NumberOfCoefficients)
+                        NumberOfCoefficients, fopdt)
             tf_dict[dep][ind] = tf
     return tf_dict
 
-def compare_curve(fir_curve, tf_curve, SteadyStateTime, NumberOfCoefficients):
+
+def compare_curve(dep, ind,fir_model, tf_model, SteadyStateTime, NumberOfCoefficients):
+    fir_curve = fir_model[dep][ind]
+    tf_curve = tf_model[dep][ind]
     ts = np.arange(0, SteadyStateTime)
-    fir_step_response = interpolate_curve(SteadyStateTime, NumberOfCoefficients, fir_curve)
-    tf_model = InternalDelay(tf(tf_curve[0], tf_curve[1], deadtime=tf_curve[2]))
+    fir_step_response = interpolate_curve(
+        SteadyStateTime, NumberOfCoefficients, fir_curve)
+    tf_model = InternalDelay(
+        tf(tf_curve[0], tf_curve[1], deadtime=tf_curve[2]))
+
     uf = lambda t: np.array([1])
     tf_step_response = tf_model.simulate(uf, ts).flatten()
-    plt.plot(ts, fir_step_response, '-', color='g',label='fir')
-    plt.plot(ts, tf_step_response, '-', color='r', label='tf')
+    plt.title(dep + ' vs ' + ind)
+    plt.plot(ts, fir_step_response, '-', color='b', label='dmc_fir_curve')
+    plt.plot(ts, tf_step_response, '-', color='m', label='tf_step_response')
     plt.legend()
     plt.show()
-    
-def detect_steady_state(curve, threshold, deadtime, SteadyStateTime):
-    window_size = int(SteadyStateTime/40)
-    start = 0 if deadtime==0 else deadtime
-    end = start + window_size
-    while True:
-        stdev = np.std(curve[start:end])
-        start = end
-        end = start + window_size
-        if stdev <= threshold:
-            break
-        elif end > len(curve):
-            end = len(curve)
-            break
-        else:
-            continue
-    return end
+
 if __name__ == '__main__':
 
     with open('mdl/Stabi.mdl', 'r') as f:
         model = get_dmc_model(f)
-    # tf_models = fit2tf(model)
+    tf_model = fit2tf(model, fopdt=True)
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']
 
-    dep = 'CV2-nBut-BOT'
-    ind = 'MV1-TEMP-SP'
-    fir_curve = model['Coefficients'][dep][ind]
-    curve = interpolate_curve(SteadyStateTime, NumberOfCoefficients, fir_curve, SampleInterval=1)
-    threshold = 0.0005
-    deadtime = calculate_deadtime(curve)
-    print(detect_steady_state(curve, threshold, deadtime, SteadyStateTime))
-    # fir_curve = model['Coefficients'][dep][ind]
-    # tf_curve = tf_models[dep][ind]
-    # compare_curve(fir_curve, tf_curve, SteadyStateTime, NumberOfCoefficients)
+    dep = 'CV1-iPen-TOP'
+    ind = 'FF1-FEED-PV'
+    fir_model = model['Coefficients']
+    compare_curve(dep, ind, fir_model, tf_model, SteadyStateTime, NumberOfCoefficients)
+    # threshold = 0.0005
+    # deadtime = calculate_deadtime(curve)
+    # print(detect_steady_state(curve, threshold, deadtime, SteadyStateTime))
     # dGain = model['dGain']['CV2-nBut-BOT']['MV1-TEMP-SP']
     # ng = - 0.095  # new gain
     # rv = rotate(v, dGain, ng)

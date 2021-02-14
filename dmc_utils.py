@@ -150,21 +150,40 @@ def compare_curve(fir_curve, tf_curve, SteadyStateTime, NumberOfCoefficients):
     plt.legend()
     plt.show()
     
-
-
+def detect_steady_state(curve, threshold, deadtime, SteadyStateTime):
+    window_size = int(SteadyStateTime/40)
+    start = 0 if deadtime==0 else deadtime
+    end = start + window_size
+    while True:
+        stdev = np.std(curve[start:end])
+        start = end
+        end = start + window_size
+        if stdev <= threshold:
+            break
+        elif end > len(curve):
+            end = len(curve)
+            break
+        else:
+            continue
+    return end
 if __name__ == '__main__':
 
     with open('mdl/Stabi.mdl', 'r') as f:
         model = get_dmc_model(f)
-    tf_models = fit2tf(model)
+    # tf_models = fit2tf(model)
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']
 
-    dep = 'CV1-iPen-TOP'
-    ind = 'MV3-PC-SP'
+    dep = 'CV2-nBut-BOT'
+    ind = 'MV1-TEMP-SP'
     fir_curve = model['Coefficients'][dep][ind]
-    tf_curve = tf_models[dep][ind]
-    compare_curve(fir_curve, tf_curve, SteadyStateTime, NumberOfCoefficients)
+    curve = interpolate_curve(SteadyStateTime, NumberOfCoefficients, fir_curve, SampleInterval=1)
+    threshold = 0.0005
+    deadtime = calculate_deadtime(curve)
+    print(detect_steady_state(curve, threshold, deadtime, SteadyStateTime))
+    # fir_curve = model['Coefficients'][dep][ind]
+    # tf_curve = tf_models[dep][ind]
+    # compare_curve(fir_curve, tf_curve, SteadyStateTime, NumberOfCoefficients)
     # dGain = model['dGain']['CV2-nBut-BOT']['MV1-TEMP-SP']
     # ng = - 0.095  # new gain
     # rv = rotate(v, dGain, ng)

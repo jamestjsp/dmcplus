@@ -37,7 +37,7 @@ def get_dmc_model(file):
         fir_curves[Dependents[dep]] = {}
 
         # Read & thrash the next dependent variable header: save the ramp status
-        isRamp[Dependents[dep]] = True if next(file).strip().split()[1] == 1 else False
+        isRamp[Dependents[dep]] = True if int(next(file).strip().split()[1]) else False
         for _ in range(10):
             next(file)
         for ind in range(NumberOfIndependents):
@@ -67,7 +67,7 @@ def get_dmc_model(file):
 
 if __name__ == '__main__':
     import  json
-    infile = 'mdl/HP.mdl'
+    infile = 'mdl/2x2_model.mdl'
    
     with open(infile, 'r') as f:
         curves = get_dmc_model(f)

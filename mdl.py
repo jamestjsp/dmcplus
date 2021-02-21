@@ -37,7 +37,7 @@ def get_dmc_model(file):
         fir_curves[Dependents[dep]] = {}
 
         # Read & thrash the next dependent variable header: save the ramp status
-        isRamp[Dependents[dep]] = True if int(next(file).strip().split()[1]) else False
+        isRamp[Dependents[dep]] = True if int(next(file).strip().split()[-2]) else False
         for _ in range(10):
             next(file)
         for ind in range(NumberOfIndependents):

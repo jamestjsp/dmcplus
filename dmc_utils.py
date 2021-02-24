@@ -87,7 +87,7 @@ def calculate_deadtime(curve):
 
 
 def detect_steady_state(curve, deadtime, SteadyStateTime, threshold=0.0005):
-    window_size = int(SteadyStateTime/40)
+    window_size = int(SteadyStateTime/40) if int(SteadyStateTime/40) > 10 else 10
     start = 0 if deadtime == 0 else deadtime
     end = start + window_size
     while True:
@@ -104,7 +104,7 @@ def detect_steady_state(curve, deadtime, SteadyStateTime, threshold=0.0005):
     return end
 
 
-def tf_step(ts, c, theta, K, a=0, b=0, isRamp=False):
+def tf_step(ts, c, theta, K, a, b, isRamp=False):
     s = tf([1, 0])
     tf_model = InternalDelay(
         K * (a*s + 1) / (b*s**2 + c*s + (not isRamp)) * np.exp(-theta*s))
@@ -121,7 +121,7 @@ def fit_tf(curve, K, isRamp, SteadyStateTime, NumberOfCoefficients, fopdt=False)
         SteadyStateTime = detect_steady_state(
             extended_curve, theta, SteadyStateTime, 0.0001)
         ts = np.arange(0, SteadyStateTime)
-        if not fopdt:
+        if not fopdt and not isRamp:
             popt, pcov = curve_fit(lambda ts, a, b, c: tf_step(ts, c, theta, K, a, b, isRamp),
                                 ts,
                                 extended_curve[:SteadyStateTime],
@@ -130,25 +130,38 @@ def fit_tf(curve, K, isRamp, SteadyStateTime, NumberOfCoefficients, fopdt=False)
             )
             a, b, c = popt
             num = [a*K, K]
-            den = [b, c, 0] if isRamp else [b, c, 1]
+            den = [b, c, 1]
             deadtime = theta
             return [num, den, deadtime]
-        else:
-            popt, pcov = curve_fit(lambda ts, c, theta: tf_step(ts, c, theta, K, isRamp),
+        elif fopdt and not isRamp:
+            popt, pcov = curve_fit(lambda ts, c, theta: tf_step(ts, c, theta, K, 0, 0, isRamp),
                                 ts,
                                 extended_curve[:SteadyStateTime],
-                                bounds=([0, theta if theta else 0], [(SteadyStateTime-theta)/4, (SteadyStateTime-theta)/3])
+                                p0 = [1,theta],
+                                bounds=([0, theta], [SteadyStateTime/4, theta+SteadyStateTime/4])
             )
             c, theta = popt
             num = [K]
-            den = [c, 0] if isRamp else [c, 1]
+            den = [c, 1]
+            deadtime = theta
+            return [num, den, deadtime]
+        else:
+            popt, pcov = curve_fit(lambda ts, theta: tf_step(ts, 1, theta, K, 0, 0, isRamp),
+                                ts,
+                                extended_curve,
+                                p0 = [theta],
+                                bounds=(theta, theta+(SteadyStateTime-theta)/4)
+            )
+            theta = popt
+            num = [K]
+            den = [1, 0]
             deadtime = theta
             return [num, den, deadtime]
     else:
         return None
 
 
-def fit2tf(model, fopdt=False):
+def fir2tf(model, fopdt=False):
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']
     deps = model['Dependents']
@@ -183,47 +196,46 @@ def compare_curve(dep, ind,fir_model, tf_model, SteadyStateTime, NumberOfCoeffic
     plt.title(dep + ' vs ' + ind)
     plt.plot(ts, fir_step_response, '-', color='b', label='dmc_fir_curve')
     plt.plot(ts, tf_step_response, '-', color='m', label='tf_step_response')
+    plt.grid(color='r', linestyle='--', linewidth=0.5)
     plt.legend()
     plt.show()
 
 if __name__ == '__main__':
 
-    with open('mdl/Stabi.mdl', 'r') as f:
+    with open('mdl/upstram_HP.mdl', 'r') as f:
         model = get_dmc_model(f)
-    tf_model = fit2tf(model, fopdt=True)
+    tf_model = fir2tf(model, fopdt=True)
     SteadyStateTime = model['SteadyStateTime']
     NumberOfCoefficients = model['NumberOfCoefficients']
 
-    dep = 'CV1-iPen-TOP'
-    ind = 'FF1-FEED-PV'
+    dep = 'FIC-2102'
+    ind = 'FI-2005'
     fir_model = model['Coefficients']
     compare_curve(dep, ind, fir_model, tf_model, SteadyStateTime, NumberOfCoefficients)
-    # threshold = 0.0005
-    # deadtime = calculate_deadtime(curve)
-    # print(detect_steady_state(curve, threshold, deadtime, SteadyStateTime))
-    # dGain = model['dGain']['CV2-nBut-BOT']['MV1-TEMP-SP']
-    # ng = - 0.095  # new gain
-    # rv = rotate(v, dGain, ng)
-    # scale_v = gScale(v, dGain, ng)
-    # x = np.arange(0, len(v))
-    # t, impulse_rsponse = get_impulse_rsponse(
-    #     SteadyStateTime, NumberOfCoefficients, v)
-    # w, h = get_freq_rsponse(SteadyStateTime, NumberOfCoefficients, v)
-    # # Plot Gain correction
-    # plt.plot(x, v, '-', x, rv, '--', x, scale_v, '-.',)
-    # plt.legend(['Orginal = -0.0810', f'Rotate = {ng}', f'GScale  = {ng}'])
-    # plt.grid(color='r', linestyle='--', linewidth=0.5)
-    # plt.title('Edited Gain using rotate and gScale')
-    # plt.show()
-    # # Plot Impulse rsponse
-    # plt.plot(t, impulse_rsponse, '--')
-    # plt.grid(color='r', linestyle='--', linewidth=0.5)
-    # plt.title('Impulse rsponse')
-    # plt.show()
-    # # Plot frequency reponce
-    # plt.semilogx(w, h, 'g')
-    # plt.ylabel('Amplitude (db)', color='b')
-    # plt.xlabel('Frequency (rad/sample)', color='b')
-    # plt.title('Frequency rsponse')
-    # plt.grid(color='r', linestyle='--', linewidth=0.5)
-    # plt.show()
+    dGain = model['dGain'][dep][ind]
+    v = model['Coefficients'][dep][ind]
+    ng = -6  # new gain
+    rv = rotate(v, dGain, ng)
+    scale_v = gScale(v, dGain, ng)
+    x = np.arange(0, len(v))
+    t, impulse_rsponse = get_impulse_rsponse(
+        SteadyStateTime, NumberOfCoefficients, v)
+    w, h = get_freq_rsponse(SteadyStateTime, NumberOfCoefficients, v)
+    # Plot Gain correction
+    plt.plot(x, v, '-', x, rv, '--', x, scale_v, '-.',)
+    plt.legend(['Orginal = -0.0810', f'Rotate = {ng}', f'GScale  = {ng}'])
+    plt.grid(color='r', linestyle='--', linewidth=0.5)
+    plt.title('Edited Gain using rotate and gScale')
+    plt.show()
+    # Plot Impulse rsponse
+    plt.plot(t, impulse_rsponse, '--')
+    plt.grid(color='r', linestyle='--', linewidth=0.5)
+    plt.title('Impulse rsponse')
+    plt.show()
+    # Plot frequency reponce
+    plt.semilogx(w, h, 'g')
+    plt.ylabel('Amplitude (db)', color='b')
+    plt.xlabel('Frequency (rad/sample)', color='b')
+    plt.title('Frequency rsponse')
+    plt.grid(color='r', linestyle='--', linewidth=0.5)
+    plt.show()
